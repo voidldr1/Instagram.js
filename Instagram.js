@@ -43,14 +43,14 @@ class Instagram {
             console.log("Missing username or password.");
             return false;
         }
-        if (typeof username != "string" || typeof passwors != "string") {
+        if (typeof username != "string" || typeof password != "string") {
 
             console.log("Wrong type of username or password. (Should be strings)");
             return false;
         }
 
-        if (!tmp && await fileExist(COOKIESAVENAME))
-            return await this.importCookies(COOKIESAVENAME);
+        if (!tmp && await fileExist(username+"_"+COOKIESAVENAME))
+            return await this.importCookies(COOKIESAVENAME, username);
 
         let req = await this.get(HOSTURL, false);
         if (req.statusCode != 200) {
@@ -88,7 +88,7 @@ class Instagram {
 
         this.options.headers["X-CSRFToken"] = this.getCookie("csrftoken");
 
-        req = await this.post("https://www.instagram.com/accounts/login/ajax/", `enc_password=#PWD_INSTAGRAM:0:${parseInt(Date.now() * 0.001)}:${password}&username=${username}&queryParams={}&optIntoOneTap=false&stopDeletionNonce=&trustedDeviceRecords={}`);
+        req = await this.post("https://www.instagram.com/accounts/login/ajax/", `enc_password=#PWD_INSTAGRAM:0:${parseInt(Date.now() * .001)}:${password}&username=${username}&queryParams={}&optIntoOneTap=false&stopDeletionNonce=&trustedDeviceRecords={}`);
         if (req.statusCode != 200) {
 
             console.log(req.text(), req);
@@ -108,7 +108,7 @@ class Instagram {
         this.client.id = content.userId;
 
         if (!tmp)
-            return await this.exportCookies(COOKIESAVENAME);
+            return await this.exportCookies(COOKIESAVENAME, username);
 
         return true;
     }
@@ -130,18 +130,27 @@ class Instagram {
 
     async getProfileInfoFromUsername(username) {
 
-        let req = await this.get(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`); // or https://www.instagram.com/${username}/?__a=1&__d=dis
+        let req = await this.get(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, true, APPIOSUA); // or https://www.instagram.com/${username}/?__a=1&__d=dis
         if (req.statusCode != 200)
-            return {error: 1, response: req, body: req.text()};
+            return {status: "fail", response: req, text: req.text()};
 
         return req.json();
     }
 
     async getFeedReels() {
 
-        let req = await this.get("https://i.instagram.com/api/v1/feed/reels_tray/");
+        let req = await this.get("https://i.instagram.com/api/v1/feed/reels_tray/", true, APPIOSUA);
         if (req.statusCode != 200)
-            return {error: 1, response: req, body: req.text()};
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
+
+    async getSavedPosts(max_id="") { // getNextSavedPosts(json) ??
+
+        let req = await this.get(`https://www.instagram.com/api/v1/feed/saved/posts/${max_id.length?"?max_id="+max_id:""}`, true, APPIOSUA);
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
 
         return req.json();
     }
@@ -173,11 +182,11 @@ class Instagram {
         return cookieArray.join("; ");
     }
 
-    async exportCookies(path) { // This actually not just saves the cookies.
+    async exportCookies(path, username) { // This actually not just saves the cookies.
 
         try {
 
-            await fs.writeFile(path, JSON.stringify({cookies:this.cookies, options:this.options, client:this.client}));
+            await fs.writeFile(username+"_"+path, JSON.stringify({cookies:this.cookies, options:this.options, client:this.client}));
             return true;
         }
         catch(e) {
@@ -187,11 +196,11 @@ class Instagram {
         }
     }
 
-    async importCookies(path) {
+    async importCookies(path, username) {
 
         try {
 
-            let datas = JSON.parse(await fs.readFile(path));
+            let datas = JSON.parse(await fs.readFile(username+"_"+path));
             this.cookies = datas.cookies,
             this.options = datas.options,
             this.client = datas.client;
