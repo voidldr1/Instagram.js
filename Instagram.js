@@ -128,9 +128,60 @@ class Instagram {
         return true;
     }
 
-    async getProfileInfoFromUsername(username) {
+    async getUserInfo(username) {
+
+        if (typeof username != "string")
+            return {status: "fail", text: "Username should be a string."};
 
         let req = await this.get(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, true, APPIOSUA); // or https://www.instagram.com/${username}/?__a=1&__d=dis
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
+
+    async getUserPosts(username, next="") { // getUserNextPosts(json) ??
+
+        if (typeof username != "string")
+            return {status: "fail", text: "Username should be a string."};
+
+        let req = await this.get(`https://www.instagram.com/api/v1/feed/user/${username}/username/?count=50${next.length>0?"&max_id="+next:""}`, true, APPIOSUA);
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
+
+    async getUserTaggedPosts(userid, next="") { // getUserNextTaggedPosts(json) ??
+
+        if (typeof username != "string")
+            return {status: "fail", text: "User id should be a string."};
+
+        let req = await this.get(`https://www.instagram.com/graphql/query/?query_hash=be13233562af2d229b008d2976b998b5&variables={"id":"${userid}","first":50${next.length>0?`,"after":"${next}"`:""}}`, true, APPIOSUA);
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
+
+    async getUserHighlightReels(userid) {
+
+        if (typeof username != "string")
+            return {status: "fail", text: "User id should be a string."};
+
+        let req = await this.get(`https://www.instagram.com/graphql/query/?query_hash=d4d88dc1500312af6f937f7b804c68c3&variables={"user_id":"${userid}","include_chaining":false,"include_reel":true,"include_suggested_users":false,"include_logged_out_extras":false,"include_highlight_reels":true,"include_live_status":true}`);
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
+
+    async getHighlightReel(highlightid) {
+
+        if (typeof username != "string")
+            return {status: "fail", text: "User id should be a string."};
+
+        let req = await this.get(`https://www.instagram.com/api/v1/feed/reels_media/?reel_ids=highlight:${highlightid}`, true, APPIOSUA);
         if (req.statusCode != 200)
             return {status: "fail", response: req, text: req.text()};
 
@@ -146,9 +197,9 @@ class Instagram {
         return req.json();
     }
 
-    async getSavedPosts(max_id="") { // getNextSavedPosts(json) ??
+    async getSavedPosts(next="") { // getNextSavedPosts(json) ??
 
-        let req = await this.get(`https://www.instagram.com/api/v1/feed/saved/posts/${max_id.length?"?max_id="+max_id:""}`, true, APPIOSUA);
+        let req = await this.get(`https://www.instagram.com/api/v1/feed/saved/posts/${next.length>0?"?max_id="+next:""}`, true, APPIOSUA);
         if (req.statusCode != 200)
             return {status: "fail", response: req, text: req.text()};
 
@@ -230,7 +281,7 @@ class Instagram {
             if (userAgent)
                 options.headers["User-Agent"] = userAgent;
 
-            https.get(url, options, res => {
+            https.get(url.replace("http:", "https:"), options, res => {
 
                 response.statusCode = res.statusCode,
                 response.headers = res.headers;
