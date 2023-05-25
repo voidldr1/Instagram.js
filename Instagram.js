@@ -34,6 +34,8 @@ class Instagram {
         };
 
         this.cookies = {};
+
+        this.cache_userids = {};
     }
 
     async login(username, password, tmp=false) {
@@ -105,7 +107,8 @@ class Instagram {
         this.options.headers["X-CSRFToken"] = this.getCookie("csrftoken"),
 
         this.client.username = username,
-        this.client.id = content.userId;
+        this.cache_userids[username] = this.client.id = content.userId;
+
 
         if (!tmp)
             return await this.exportCookies(COOKIESAVENAME, username);
@@ -130,80 +133,118 @@ class Instagram {
 
     async getUserInfo(username) {
 
-        if (typeof username != "string")
-            return {status: "fail", text: "Username should be a string."};
+        let check = await this.checkAndRememberUser(username, false);
+        if (check.status != "ok")
+            return check;
 
-        let req = await this.get(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, true, APPIOSUA); // or https://www.instagram.com/${username}/?__a=1&__d=dis
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
+        let req = await this.getJSON(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, APPIOSUA); // or https://www.instagram.com/${username}/?__a=1&__d=dis
 
-        return req.json();
-    }
+        if (req.status != "ok")
+            this.cache_userids[username] = req.data.user.id;
 
-    async getUserPosts(username, next="") { // getUserNextPosts(json) ??
-
-        if (typeof username != "string")
-            return {status: "fail", text: "Username should be a string."};
-
-        let req = await this.get(`https://www.instagram.com/api/v1/feed/user/${username}/username/?count=50${next.length>0?"&max_id="+next:""}`, true, APPIOSUA);
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
-
-        return req.json();
-    }
-
-    async getUserTaggedPosts(userid, next="") { // getUserNextTaggedPosts(json) ??
-
-        if (typeof username != "string")
-            return {status: "fail", text: "User id should be a string."};
-
-        let req = await this.get(`https://www.instagram.com/graphql/query/?query_hash=be13233562af2d229b008d2976b998b5&variables={"id":"${userid}","first":50${next.length>0?`,"after":"${next}"`:""}}`, true, APPIOSUA);
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
-
-        return req.json();
-    }
-
-    async getUserHighlightReels(userid) {
-
-        if (typeof username != "string")
-            return {status: "fail", text: "User id should be a string."};
-
-        let req = await this.get(`https://www.instagram.com/graphql/query/?query_hash=d4d88dc1500312af6f937f7b804c68c3&variables={"user_id":"${userid}","include_chaining":false,"include_reel":true,"include_suggested_users":false,"include_logged_out_extras":false,"include_highlight_reels":true,"include_live_status":true}`);
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
-
-        return req.json();
-    }
-
-    async getHighlightReel(highlightid) {
-
-        if (typeof username != "string")
-            return {status: "fail", text: "User id should be a string."};
-
-        let req = await this.get(`https://www.instagram.com/api/v1/feed/reels_media/?reel_ids=highlight:${highlightid}`, true, APPIOSUA);
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
-
-        return req.json();
+        return req;
     }
 
     async getFeedReels() {
 
-        let req = await this.get("https://i.instagram.com/api/v1/feed/reels_tray/", true, APPIOSUA);
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
-
-        return req.json();
+        return await this.getJSON("https://i.instagram.com/api/v1/feed/reels_tray/", true, APPIOSUA);
     }
 
     async getSavedPosts(next="") { // getNextSavedPosts(json) ??
 
-        let req = await this.get(`https://www.instagram.com/api/v1/feed/saved/posts/${next.length>0?"?max_id="+next:""}`, true, APPIOSUA);
-        if (req.statusCode != 200)
-            return {status: "fail", response: req, text: req.text()};
+        return await this.getJSON(`https://www.instagram.com/api/v1/feed/saved/posts/${next.length>0?"?max_id="+next:""}`);
+    }
 
-        return req.json();
+    async follow(username, userid) {
+
+        let id = userid;
+        if (typeof userid != "string") {
+
+            let check = await this.checkAndRememberUser(username);
+            if (check.status != "ok")
+                return check;
+
+            id = this.cache_userids[username];
+        }
+
+        return await this.postURIENCODED(`https://www.instagram.com/api/v1/web/friendships/${id}/follow/`, "");
+    }
+
+    async unfollow(username, userid) {
+
+        let id = userid;
+        if (typeof userid != "string") {
+
+            let check = await this.checkAndRememberUser(username);
+            if (check.status != "ok")
+                return check;
+
+            id = this.cache_userids[username];
+        }
+
+        return await this.postURIENCODED(`https://www.instagram.com/api/v1/web/friendships/${id}/unfollow/`, "");
+    }
+
+    async block(username, userid) {
+
+        let id = userid;
+        if (typeof userid != "string") {
+
+            let check = await this.checkAndRememberUser(username);
+            if (check.status != "ok")
+                return check;
+
+            id = this.cache_userids[username];
+        }
+
+        return await this.postURIENCODED(`https://www.instagram.com/api/v1/web/friendships/${id}/block/`, "", APPIOSUA);
+    }
+
+    async getUserPosts(username, next="") { // getUserNextPosts(json) ??
+
+        let check = await this.checkAndRememberUser(username, false);
+        if (check.status != "ok")
+            return check;
+
+        return await this.getJSON(`https://www.instagram.com/api/v1/feed/user/${username}/username/?count=50${next.length>0?"&max_id="+next:""}`, APPIOSUA);
+    }
+
+    async getUserTaggedPosts(username, next="", userid) { // getUserNextTaggedPosts(json) ??
+
+        let id = userid;
+        if (typeof userid != "string") {
+
+            let check = await this.checkAndRememberUser(username);
+            if (check.status != "ok")
+                return check;
+
+            id = this.cache_userids[username];
+        }
+
+        return await this.getJSON(`https://www.instagram.com/graphql/query/?query_hash=be13233562af2d229b008d2976b998b5&variables={"id":"${id}","first":50${next.length>0?`,"after":"${next}"`:""}}`, APPIOSUA);
+    }
+
+    async getUserHighlightReels(username, userid) {
+
+        let id = userid;
+        if (typeof userid != "string") {
+
+            let check = await this.checkAndRememberUser(username);
+            if (check.status != "ok")
+                return check;
+
+            id = this.cache_userids[username];
+        }
+
+        return await this.getJSON(`https://www.instagram.com/graphql/query/?query_hash=d4d88dc1500312af6f937f7b804c68c3&variables={"user_id":"${id}","include_chaining":false,"include_reel":true,"include_suggested_users":false,"include_logged_out_extras":false,"include_highlight_reels":true,"include_live_status":true}`);
+    }
+
+    async getHighlightReel(highlightid) {
+
+        if (typeof highlightid != "string")
+            return {status: "fail", text: "Highlight reel id should be a string."};
+
+        return await this.getJSON(`https://www.instagram.com/api/v1/feed/reels_media/?reel_ids=highlight:${highlightid}`, APPIOSUA);
     }
 
     /* Core functions */
@@ -265,6 +306,42 @@ class Instagram {
         }
     }
 
+    async checkAndRememberUser(username, remember=true) {
+
+        if (typeof username != "string") return {status: "fail", text: "Username should be a string."};
+        if (!/^[a-zA-Z0-9_.]*$/.test(username)) return {status: "fail", text: `Invalid username (${username}).`};
+
+        if (remember && !this.cache_userids[username]) {
+
+            let req = await this.getUserInfo(username);
+            if (req.status != "ok")
+                return req;
+
+            this.cache_userids[username] = req.data.user.id;
+
+            await this.sleep(1000);
+        }
+
+        return {status: "ok"};
+    }
+
+    async getJSON(url, userAgent=CHRWINUA) {
+
+        let req = await this.get(url, true, userAgent);
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
+
+    async postURIENCODED(url, data, userAgent=CHRWINUA) {
+
+        let req = await this.post(url, data, true, userAgent);
+        if (req.statusCode != 200)
+            return {status: "fail", response: req, text: req.text()};
+
+        return req.json();
+    }
     async get(url, useCookie=true, userAgent) {
 
         return new Promise(resolve => {
