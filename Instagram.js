@@ -164,7 +164,7 @@ class Instagram {
         }
 
         if (!this.tmp)
-            await fs.unlink(COOKIESAVENAME);
+            await fs.unlink(this.client.username+"_"+COOKIESAVENAME);
 
         return true;
     }
@@ -223,6 +223,13 @@ class Instagram {
         let id = await this.checkAndRememberUserID(username, userid);
 
         return await this.getJSON(`https://www.instagram.com/api/v1/friendships/${id}/following/?count=200${next.length>0?"&max_id="+next:""}`, "");
+    }
+
+    async getFollowers(username, next="", userid) {
+
+        let id = await this.checkAndRememberUserID(username, userid);
+
+        return await this.getJSON(`https://www.instagram.com/api/v1/friendships/${id}/followers/?count=200${next.length>0?"&max_id="+next:""}`, "");
     }
 
     async getUserPosts(username, next="") { // getUserNextPosts(json) ??
