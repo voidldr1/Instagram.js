@@ -3,7 +3,7 @@ const https = require("https"),
       fs = require("fs").promises;
 
 const COOKIESAVENAME = "cookies.json",
-      CHRWINUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 (320dpi; 2660x3840; 382468104)",
+      CHRWINUA = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0 (320dpi; 2660x3840; 382468104)",
       HOSTURL = "https://www.instagram.com/";
 
 class Instagram {
@@ -17,7 +17,7 @@ class Instagram {
             "headers": {
                 "User-Agent": CHRWINUA,
                 "Accept": "*/*",
-                "Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
+                "Accept-Language": "en-US",
                 "Origin": "https://www.instagram.com",
                 "Sec-Fetch-Dest": "empty",
                 "Sec-Fetch-Mode": "cors",
@@ -154,35 +154,6 @@ class Instagram {
         return true;
     }
 
-    async relogin(password, logout=true) {
-
-        if (logout)
-            if (!this.logout())
-                return false;
-
-        let username = this.client.username;
-
-        this.client = {},
-        this.options = {
-            "credentials": "include",
-            "headers": {
-                "User-Agent": CHRWINUA,
-                "Accept": "*/*",
-                "Accept-Language": "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3",
-                "Origin": "https://www.instagram.com",
-                "Sec-Fetch-Dest": "empty",
-                "Sec-Fetch-Mode": "cors",
-                "Sec-Fetch-Site": "same-origin",
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            "mode": "cors"
-        },
-        this.tmp = false,
-        this.cookies = {};
-
-        return await this.login(username, password);
-    }
-
     async logout() {
 
         let req = await this.post("https://www.instagram.com/api/v1/web/accounts/logout/ajax/", `one_tap_app_login=0&user_id=${this.client.id}`);
@@ -245,6 +216,13 @@ class Instagram {
         let id = await this.checkAndRememberUserID(username, userid);
 
         return await this.postURIENCODED(`https://www.instagram.com/api/v1/web/friendships/${id}/unblock/`, "");
+    }
+
+    async getFollowing(username, next="", userid) {
+
+        let id = await this.checkAndRememberUserID(username, userid);
+
+        return await this.getJSON(`https://www.instagram.com/api/v1/friendships/${id}/following/?count=200${next.length>0?"&max_id="+next:""}`, "");
     }
 
     async getUserPosts(username, next="") { // getUserNextPosts(json) ??
